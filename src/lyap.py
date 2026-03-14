@@ -5,6 +5,7 @@ import numpy as np
 class LyapunovExponents():
     """
     This class computes Lyapunov exponents ifor discrete maps or continuous time systems.
+    The algorithm used is the Benettin Algorithm.
     Use the continuous flag to switch between modes.
     Supports euler or rk4 integration for continuous systems
     """
@@ -57,7 +58,7 @@ class LyapunovExponents():
                     if jac is not None:
                         J = jac(x)
                     else:
-                        J = self.jacobian(func, x)
+                        J = self.jacobian_fd(func, x)
                     
                     Q = Q + self.dt * (J @ Q)
                     x = x + self.dt * func(x)
@@ -68,7 +69,7 @@ class LyapunovExponents():
                 if jac is not None:
                     J = jac(x)
                 else:
-                    J = self.jacobian(func, x)
+                    J = self.jacobian_fd(func, x)
                 Q = J @ Q
                 x = func(x)
 
@@ -102,7 +103,7 @@ class LyapunovExponents():
             return lyap_exp, torch.tensor(time_values), torch.stack(ftle_values)
         else:
             return lyap_exp
-        
+            
 
     def _rk4_step(self, func, x, Q, jac=None):
         """
@@ -160,6 +161,38 @@ class LyapunovExponents():
         
         return J
     
+    def jacobian_fd(func, x, eps=1e-6):
+        """
+        Finite-difference Jacobian of func(x)
+
+        Inputs
+            func : function R^m -> R^n
+            x    : tensor (m,)
+            eps  : finite difference step
+
+        Output
+            J : tensor (n, m)
+        """
+
+        x = x.detach()
+        m = x.numel()
+
+        y0 = func(x)
+        n = y0.numel()
+
+        J = torch.zeros(n, m, device=x.device, dtype=x.dtype)
+
+        for i in range(m):
+            dx = torch.zeros_like(x)
+            dx[i] = eps
+
+            y_plus = func(x + dx)
+            y_minus = func(x - dx)
+
+            J[:, i] = ((y_plus - y_minus) / (2 * eps)).reshape(-1)
+
+        return J
+    
 
 class NN_LyapExp:
     """
@@ -194,6 +227,39 @@ class NN_LyapExp:
             if grad is None:
                 grad = torch.zeros_like(x)
             J[i, :] = grad.reshape(-1)
+        return J
+    
+    def jacobian_flow(self, x, t0=0.0, t1=1.0):
+        x = x.clone().detach().requires_grad_(True)
+
+        def phi(z):
+            return self.flow_map(z, t0=t0, t1=t1)
+        
+        J = torch.autograd.functional.jacobian(phi, x)
+        return J.squeeze()
+    
+    def jacobian_flow_fd(self, x, t0=0.0, t1=1.0, eps=1e-6):
+        """
+        Finite-difference Jacobian of the flow map Φ_T(x)
+        """
+
+        x = x.detach()
+        m = x.numel()
+
+        y0 = self.flow_map(x, t0=t0, t1=t1)
+        n = y0.numel()
+
+        J = torch.zeros(n, m, device=x.device, dtype=x.dtype)
+
+        for i in range(m):
+            dx = torch.zeros_like(x)
+            dx[i] = eps
+
+            y_plus = self.flow_map(x + dx, t0=t0, t1=t1)
+            y_minus = self.flow_map(x - dx, t0=t0, t1=t1)
+
+            J[:, i] = ((y_plus - y_minus) / (2 * eps)).reshape(-1)
+
         return J
 
     def lyapunov_spectrum(self, x0, T=1000, n_lyap=None):
@@ -246,4 +312,11 @@ class NN_LyapExp:
             log_sum += torch.log(norm_v + 1e-12)
 
         return (log_sum / T).item()
+    
+    def flow_map(self, x, t0=0.0, t1=1.0):
+        """
+        Flow map Φ^T(x)
+        """
+        return self.model(x, t0=t0, t1=t1)
+    
 

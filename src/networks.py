@@ -83,9 +83,9 @@ class ODEFunc(nn.Module):
     def __init__(self, hidden_dim):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.Tanh(),
-            # nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim, 5),
+            nn.Tanh(),                          # Try out ReLU
+            nn.Linear(5, hidden_dim),  # try this out, can also make the first to higher dim and this from higher dim
             # nn.Tanh()
         )
 
@@ -101,15 +101,24 @@ class NeuralODEClassifier(nn.Module):
         self.final_layer = nn.Linear(hidden_dim, 1)
 
     def forward(self, x):
-        z0 = torch.tanh(self.input_layer(x))
-        tspan = torch.tensor([0, 1], dtype=torch.float32, device=x.device)     # integrate from t=0 to t=1
-        zT = odeint(self.odefunc, z0, tspan, method="dopri5")[-1]
-        out = torch.tanh(self.final_layer(zT))
+        # z0 = torch.tanh(self.input_layer(x))
+        z0 = self.input_layer(x) 
+
+        # tspan = torch.tensor([0, 1], dtype=torch.float32, device=x.device)     # integrate from t=0 to t=1
+        tspan = torch.arange(
+            0.0, 3.0 + 1e-6, 0.1,
+            device=x.device
+        )
+
+        zT = odeint(self.odefunc, z0, tspan, method="euler")[-1]              # try out Euler discretization (0.1 stepsize)
+        # out = torch.tanh(self.final_layer(zT))  # Try to exclude this tanh as well
+        out = self.final_layer(zT)
         return out.squeeze()
     
     def get_hidden_trajectory(self, x, t_eval):
-        z0 = torch.tanh(self.input_layer(x))
-        z_traj = odeint(self.odefunc, z0, t_eval)
+        # z0 = torch.tanh(self.input_layer(x))
+        z0 = self.input_layer(x)
+        z_traj = odeint(self.odefunc, z0, t_eval, method="euler")
         return z_traj
 
 class NeuralODE_Truncated(nn.Module):
@@ -117,15 +126,18 @@ class NeuralODE_Truncated(nn.Module):
     Returns the hidden state z(T) of the Neural ODE,
     excluding the final linear output layer.
     """
-    def __init__(self, neural_ode_model, t0=0.0, t1=1.0):
+    def __init__(self, neural_ode_model):
         super().__init__()
         self.model = neural_ode_model
-        self.tspan = torch.tensor([t0, t1])
 
-    def forward(self, x):
+    def forward(self, x, *,  t0=0.0, t1=3.0):
         # x: shape [B, input_dim]
-        z0 = torch.tanh(self.model.input_layer(x))           # initial hidden state
-        zT = odeint(self.model.odefunc, z0, self.tspan)[-1]  # integrate to T
+        # T: final time for integration (float)
+        device = x.device
+        tspan = torch.tensor([t0, t1], dtype=torch.float32, device=device)
+
+        z0 = self.model.input_layer(x)           # initial hidden state
+        zT = odeint(self.model.odefunc, z0, tspan)[-1]  # integrate to T
         return zT                                            # do NOT apply final layer
     
 

@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
+from .lyap import NN_LyapExp
 
 def avg_jacobian_norm(model, X):
     X = X.float().requires_grad_(True)
@@ -17,7 +18,7 @@ def avg_jacobian_norm(model, X):
     return sum(jac_list)/len(jac_list)
 
 
-def margin_accuracy(model, dataloader, margin=0.7):
+def margin_accuracy(model, dataloader, margin=0.3):
     model.eval()
     correct = 0
     total = 0
@@ -42,7 +43,7 @@ def train(model: nn.Module,
           dataloader: DataLoader,
           val_dataloader: DataLoader,
           loss_fn: nn.Module,
-          acc_target: float = 0.90,
+          acc_target: float = 0.95,
           eval_every: int = 20,
           seed: int = 42,
           epochs: int = 2500,):
@@ -77,7 +78,7 @@ def train(model: nn.Module,
         epoch_loss /= len(dataloader.dataset)
 
         if epoch % eval_every == 0:
-            val_acc = margin_accuracy(model, val_dataloader)
+            val_acc = margin_accuracy(model, val_dataloader, margin=0.5)
             print(f"Epoch {epoch} | Train Loss {epoch_loss:.6f} | Validation Accuracy {val_acc:.6f}")
 
             if val_acc > acc_target:
@@ -116,10 +117,15 @@ def lyapunov_autograd(x_vals: np.array,
                          y_vals: np.array,
                          model: nn.Module,
                          mean: float,
-                         std: float
+                         std: float,
+                         t0: float = 0.0,
+                         t1: float = 1.0
 ):
     lyap_grid = np.zeros((len(x_vals), len(y_vals)))
     lyap_grid_min = np.zeros((len(x_vals), len(y_vals)))
+
+    nn_lyap = NN_LyapExp(model)
+    
     for i, x in enumerate(x_vals):
         for j, y in enumerate(y_vals):
 
@@ -130,7 +136,7 @@ def lyapunov_autograd(x_vals: np.array,
             x0 = ((x0 - mean) / std).float()
 
             # Compute Jacobian
-            J = jacobian_node(model, x0)
+            J = nn_lyap.jacobian_flow(x0, t0=t0, t1=t1)
 
             # Singular values
             svals = torch.linalg.svdvals(J)
