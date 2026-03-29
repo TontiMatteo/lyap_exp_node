@@ -83,9 +83,9 @@ class ODEFunc(nn.Module):
     def __init__(self, hidden_dim):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(hidden_dim, 5),
+            nn.Linear(hidden_dim, 10),
             nn.Tanh(),                          # Try out ReLU
-            nn.Linear(5, hidden_dim),  # try this out, can also make the first to higher dim and this from higher dim
+            nn.Linear(10, hidden_dim),  # try this out, can also make the first to higher dim and this from higher dim
             # nn.Tanh()
         )
 
@@ -106,7 +106,7 @@ class NeuralODEClassifier(nn.Module):
 
         # tspan = torch.tensor([0, 1], dtype=torch.float32, device=x.device)     # integrate from t=0 to t=1
         tspan = torch.arange(
-            0.0, 3.0 + 1e-6, 0.1,
+            0.0, 1.0 + 1e-6, 0.1,
             device=x.device
         )
 

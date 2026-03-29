@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+import inspect
+
 class LyapunovExponents():
     """
     This class computes Lyapunov exponents ifor discrete maps or continuous time systems.
@@ -42,36 +44,34 @@ class LyapunovExponents():
         Q = torch.eye(n, m, dtype=x.dtype, device=x.device)
         log_norms = torch.zeros(m, dtype=x.dtype, device=x.device)
         
-
         # Steps for integration
         steps = int(T / self.dt) if self.continuous else T
+
+        func = self._wrap_func(func)
 
         # For FTLE recording
         ftle_values = []
         time_values = []
 
         for step in range(steps):
+            t = step * self.dt
+            f_eval = func(x, t)
+
             if self.continuous:
                 if self.integrator == 'rk4':
-                    Q, x = self._rk4_step(func, x, Q, jac)
+                    Q, x = self._rk4_step(func, x, Q, t, jac)
                 elif self.integrator == 'euler':
-                    if jac is not None:
-                        J = jac(x)
-                    else:
-                        J = self.jacobian_fd(func, x)
+                    J = jac(x, t) if jac is not None else self.jacobian(func, x, t)
                     
                     Q = Q + self.dt * (J @ Q)
-                    x = x + self.dt * func(x)
+                    x = x + self.dt * f_eval
                 else:
                     raise ValueError("Integrator must be 'euler' or 'rk4'")
             else:
                 # discrete map
-                if jac is not None:
-                    J = jac(x)
-                else:
-                    J = self.jacobian_fd(func, x)
+                J = jac(x, t) if jac is not None else self.jacobian(func, x, t)
                 Q = J @ Q
-                x = func(x)
+                x = func(x, t)
 
             # QR orthonormalization
             if orthonormalize:
@@ -105,29 +105,29 @@ class LyapunovExponents():
             return lyap_exp
             
 
-    def _rk4_step(self, func, x, Q, jac=None):
+    def _rk4_step(self, func, x, Q, t, jac=None):
         """
         One RK4 integration step for both x and Q.
         """
         dt = self.dt
 
-        f1 = func(x)
-        J1 = jac(x) if jac is not None else self.jacobian(func, x)
+        f1 = func(x, t)
+        J1 = jac(x, t) if jac is not None else self.jacobian(func, x, t)
         k1Q = J1 @ Q
 
         x2 = x + 0.5 * dt * f1
-        f2 = func(x2)
-        J2 = jac(x2) if  jac is not None else self.jacobian(func, x2)
+        f2 = func(x2, t + 0.5*dt)
+        J2 = jac(x2, t + 0.5*dt) if  jac is not None else self.jacobian(func, x2, t + 0.5*dt)
         k2Q = J2 @ (Q + 0.5 * dt * k1Q)
 
         x3 = x + 0.5 * dt * f2
-        f3 = func(x3)
-        J3 = jac(x3) if jac is not None else self.jacobian(func, x3)
+        f3 = func(x3, t + 0.5*dt)
+        J3 = jac(x3, t + 0.5*dt) if jac is not None else self.jacobian(func, x3, t + 0.5*dt)
         k3Q = J3 @ (Q + 0.5 * dt * k2Q)
 
         x4 = x + dt * f3
-        f4 = func(x4)
-        J4 = jac(x4) if jac is not None else self.jacobian(func, x4)
+        f4 = func(x4, t + dt)
+        J4 = jac(x4, t + dt) if jac is not None else self.jacobian(func, x4, t + dt)
         k4Q = J4 @ (Q + dt * k3Q)
 
         # RK4 updates
@@ -136,7 +136,7 @@ class LyapunovExponents():
         return Q_next, x_next
 
     @staticmethod
-    def jacobian(func, x, eps=1e-8):
+    def jacobian(func, x, t):
         """
         Compute the Jacobian of the function through finite differences.
         Inputs:
@@ -149,7 +149,7 @@ class LyapunovExponents():
             J: Jacobian matrix of the function
         """
         x = x.clone().detach().requires_grad_(True)
-        y = func(x)
+        y = func(x, t)
 
         n = y.numel()
         m = x.numel()
@@ -157,7 +157,7 @@ class LyapunovExponents():
         J = torch.zeros(n, m, device=x.device, dtype=x.dtype)
         for i in range(n):
             grad_i = torch.autograd.grad(y.flatten()[i], x, retain_graph=True)[0]
-            J[:, i] = grad_i.reshape(-1)
+            J[i, :] = grad_i.reshape(-1)
         
         return J
     
@@ -192,6 +192,20 @@ class LyapunovExponents():
             J[:, i] = ((y_plus - y_minus) / (2 * eps)).reshape(-1)
 
         return J
+    
+    def _wrap_func(self, func):
+        """
+        Returns a function that always accepts (x, t) as a input
+        """
+        sig = inspect.signature(func)
+
+        if len(sig.parameters) == 1:
+            def wrapped(x, t):
+                return func(x)
+        else:
+            wrapped = func
+
+        return wrapped
     
 
 class NN_LyapExp:
