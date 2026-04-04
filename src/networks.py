@@ -96,13 +96,17 @@ class ODEFunc(nn.Module):
 class NeuralODEClassifier(nn.Module):
     def __init__(self, input_dim, hidden_dim):
         super().__init__()
-        self.input_layer = nn.Linear(input_dim, hidden_dim)
+        # self.input_layer = nn.Linear(input_dim, hidden_dim)
+        self.input_dim = input_dim
+        self.augment_dim = hidden_dim - input_dim
         self.odefunc = ODEFunc(hidden_dim=hidden_dim)
         self.final_layer = nn.Linear(hidden_dim, 1)
 
     def forward(self, x):
         # z0 = torch.tanh(self.input_layer(x))
-        z0 = self.input_layer(x) 
+        # z0 = self.input_layer(x) 
+        aug = torch.zeros(x.shape[0], self.augment_dim, device=x.device)
+        z0 = torch.cat([x, aug], dim=1)
 
         # tspan = torch.tensor([0, 1], dtype=torch.float32, device=x.device)     # integrate from t=0 to t=1
         tspan = torch.arange(
@@ -117,7 +121,10 @@ class NeuralODEClassifier(nn.Module):
     
     def get_hidden_trajectory(self, x, t_eval):
         # z0 = torch.tanh(self.input_layer(x))
-        z0 = self.input_layer(x)
+        # z0 = self.input_layer(x)
+        aug = torch.zeros(x.shape[0], self.augment_dim, device=x.device)
+        z0 = torch.cat([x, aug], dim=1)
+
         z_traj = odeint(self.odefunc, z0, t_eval, method="euler")
         return z_traj
 
@@ -130,13 +137,15 @@ class NeuralODE_Truncated(nn.Module):
         super().__init__()
         self.model = neural_ode_model
 
-    def forward(self, x, *,  t0=0.0, t1=3.0):
+    def forward(self, x, *,  t0=0.0, t1=1.0):
         # x: shape [B, input_dim]
         # T: final time for integration (float)
         device = x.device
         tspan = torch.tensor([t0, t1], dtype=torch.float32, device=device)
 
-        z0 = self.model.input_layer(x)           # initial hidden state
+        # z0 = self.model.input_layer(x)           # initial hidden state
+        aug = torch.zeros(x.shape[0], self.model.augment_dim, device=x.device)
+        z0 = torch.cat([x, aug], dim=1)
         zT = odeint(self.model.odefunc, z0, tspan)[-1]  # integrate to T
         return zT                                            # do NOT apply final layer
     
