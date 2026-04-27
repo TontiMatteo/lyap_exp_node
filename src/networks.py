@@ -83,20 +83,23 @@ class ODEFunc(nn.Module):
     def __init__(self, hidden_dim):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(hidden_dim, 10),
-            nn.Tanh(),                          # Try out ReLU
-            nn.Linear(10, hidden_dim),  # try this out, can also make the first to higher dim and this from higher dim
-            # nn.Tanh()
+            nn.Linear(hidden_dim + 1, 32),
+            nn.ReLU(),                          # Try out ReLU
+            nn.Linear(32, 32),  # try this out, can also make the first to higher dim and this from higher dim
+            nn.ReLU(),
+            nn.Linear(32, 3)
         )
 
     def forward(self, t, z):
-        return self.net(z)
+        t_vec = torch.ones(z.shape[0], 1, device=z.device) * t
+        z_aug = torch.cat([z, t_vec], dim=1)
+        return self.net(z_aug)
     
 
 class NeuralODEClassifier(nn.Module):
     def __init__(self, input_dim, hidden_dim):
         super().__init__()
-        # self.input_layer = nn.Linear(input_dim, hidden_dim)
+        self.input_layer = nn.Linear(input_dim, hidden_dim)
         self.input_dim = input_dim
         self.augment_dim = hidden_dim - input_dim
         self.odefunc = ODEFunc(hidden_dim=hidden_dim)
@@ -114,7 +117,7 @@ class NeuralODEClassifier(nn.Module):
             device=x.device
         )
 
-        zT = odeint(self.odefunc, z0, tspan, method="euler")[-1]              # try out Euler discretization (0.1 stepsize)
+        zT = odeint(self.odefunc, z0, tspan, method="dopri5")[-1]              # try out Euler discretization (0.1 stepsize)
         # out = torch.tanh(self.final_layer(zT))  # Try to exclude this tanh as well
         out = self.final_layer(zT)
         return out.squeeze()
@@ -125,7 +128,7 @@ class NeuralODEClassifier(nn.Module):
         aug = torch.zeros(x.shape[0], self.augment_dim, device=x.device)
         z0 = torch.cat([x, aug], dim=1)
 
-        z_traj = odeint(self.odefunc, z0, t_eval, method="euler")
+        z_traj = odeint(self.odefunc, z0, t_eval, method="dopri5")
         return z_traj
 
 class NeuralODE_Truncated(nn.Module):
