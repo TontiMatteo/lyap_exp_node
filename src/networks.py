@@ -112,12 +112,13 @@ class NeuralODEClassifier(nn.Module):
         z0 = torch.cat([x, aug], dim=1)
 
         # tspan = torch.tensor([0, 1], dtype=torch.float32, device=x.device)     # integrate from t=0 to t=1
-        tspan = torch.arange(
-            0.0, 1.0 + 1e-6, 0.1,
-            device=x.device
-        )
+        # tspan = torch.arange(
+        #     0.0, 1.0 + 1e-6, 0.1,
+        #     device=x.device
+        # )
+        tspan = torch.tensor([0., 1.])
 
-        zT = odeint(self.odefunc, z0, tspan, method="dopri5")[-1]              # try out Euler discretization (0.1 stepsize)
+        zT = odeint(self.odefunc, z0, tspan, method="dopri5", atol=1e-3, rtol=1e-3, options={'max_num_steps': 1000})[-1]              # try out Euler discretization (0.1 stepsize)
         # out = torch.tanh(self.final_layer(zT))  # Try to exclude this tanh as well
         out = self.final_layer(zT)
         return out.squeeze()
