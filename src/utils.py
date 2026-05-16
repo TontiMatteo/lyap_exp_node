@@ -30,7 +30,7 @@ def margin_accuracy(model, dataloader, margin=0.3):
 
             pred = model(x).squeeze()
             # confident = (y * pred > margin)
-            confident = (torch.sign(pred) == torch.sign(y))
+            confident = (torch.sign(pred) == torch.sign(y.squeeze()))
 
             correct += confident.sum().item()
             total += y.numel()
@@ -80,13 +80,13 @@ def train(model: nn.Module,
             val_acc = margin_accuracy(model, val_dataloader, margin=0.5)
             print(f"Epoch {epoch} | Train Loss {epoch_loss:.6f} | Validation Accuracy {val_acc:.6f}")
 
-            # if val_acc > acc_target:
-            #     hits += 1
-            #     if hits >= required_hits:
-            #         print(f"Early stopping: reached {acc_target*100:.1f}% validation accuracy")
-            #         break
-            # else:
-            #     hits = 0
+            if val_acc > acc_target:
+                hits += 1
+                if hits >= required_hits:
+                    print(f"Early stopping: reached {acc_target*100:.1f}% validation accuracy")
+                    break
+            else:
+                hits = 0
 
 
 def jacobian_node(model: nn.Module,
