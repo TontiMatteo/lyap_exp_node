@@ -145,3 +145,49 @@ def lyapunov_autograd(x_vals: np.array,
             lyap_grid_min[j, i] = torch.log(svals.min()).item()
 
     return lyap_grid, lyap_grid_min
+
+def lyapunov_autograd_full(
+    x_vals,
+    y_vals,
+    model,
+    mean,
+    std,
+    t0=0.0,
+    t1=1.0
+):
+
+    ftle_1 = np.zeros((len(y_vals), len(x_vals)))
+    ftle_2 = np.zeros((len(y_vals), len(x_vals)))
+    ftle_3 = np.zeros((len(y_vals), len(x_vals)))
+
+    nn_lyap = NN_LyapExp(model)
+
+    for i, x in enumerate(x_vals):
+        for j, y in enumerate(y_vals):
+
+            # Original 2D point
+            xy = torch.tensor([[x, y]], dtype=torch.float32)
+
+            # Standardize original coordinates
+            xy = ((xy - mean) / std).float()
+
+            # Initial augmented coordinate = 0
+            aug = torch.zeros((1, 1))
+
+            # Full 3D initial condition
+            z0 = torch.cat([xy, aug], dim=1)
+
+            # Full 3x3 Jacobian
+            J = nn_lyap.jacobian_flow(z0, t0=t0, t1=t1)
+
+            # Singular values
+            svals = torch.linalg.svdvals(J)
+
+            # Sort descending
+            svals, _ = torch.sort(svals, descending=True)
+
+            ftle_1[j, i] = torch.log(svals[0]).item()
+            ftle_2[j, i] = torch.log(svals[1]).item()
+            ftle_3[j, i] = torch.log(svals[2]).item()
+
+    return ftle_1, ftle_2, ftle_3

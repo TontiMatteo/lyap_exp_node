@@ -158,6 +158,37 @@ class NeuralODE_Truncated(nn.Module):
         # zT = odeint(self.model.odefunc, z0, tspan, method="euler")
         return zT                                            # do NOT apply final layer
     
+class NeuralODE_Full(nn.Module):
+    """
+    Takes full augmented initial condition z0 directly.
+    Computes flow Phi_t(z0).
+    """
+
+    def __init__(self, neural_ode_model):
+        super().__init__()
+        self.model = neural_ode_model
+
+    def forward(self, z0, *, t0=0.0, t1=1.0):
+
+        device = z0.device
+
+        tspan = torch.tensor(
+            [t0, t1],
+            dtype=torch.float32,
+            device=device
+        )
+
+        zT = odeint(
+            self.model.odefunc,
+            z0,
+            tspan,
+            method="dopri5",
+            atol=1e-3,
+            rtol=1e-3,
+            options={'max_num_steps': 1000}
+        )[-1]
+
+        return zT
 
 def init_weights(module, init_type="xavier_normal", gain=1.0):
     if isinstance(module, nn.Linear):
