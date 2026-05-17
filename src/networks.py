@@ -83,17 +83,17 @@ class ODEFunc(nn.Module):
     def __init__(self, hidden_dim):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(hidden_dim+1, 32),
-            nn.ReLU(),                          # Try out ReLU
-            nn.Linear(32, 32),  # try this out, can also make the first to higher dim and this from higher dim
-            nn.ReLU(),
-            nn.Linear(32, 3)
+            nn.Linear(hidden_dim, 3),
+            nn.Tanh(),                          # Try out ReLU
+            # nn.Linear(32, 32),  # try this out, can also make the first to higher dim and this from higher dim
+            # nn.ReLU(),
+            # nn.Linear(32, 3)
         )
 
     def forward(self, t, z):
         t_vec = torch.ones(z.shape[0], 1, device=z.device) * t
         z_aug = torch.cat([z, t_vec], dim=1)
-        return self.net(z_aug)
+        return self.net(z)
     
 
 class NeuralODEClassifier(nn.Module):
