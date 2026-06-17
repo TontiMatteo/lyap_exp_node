@@ -29,8 +29,8 @@ def margin_accuracy(model, dataloader, margin=0.3):
             y = y.float()
 
             pred = model(x).squeeze()
-            # confident = (y * pred > margin)
-            confident = (torch.sign(pred) == torch.sign(y.squeeze()))
+            confident = (y * pred > margin)
+            # confident = (torch.sign(pred) == torch.sign(y.squeeze()))
 
             correct += confident.sum().item()
             total += y.numel()
