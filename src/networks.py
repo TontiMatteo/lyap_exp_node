@@ -87,29 +87,29 @@ class ODEFunc(nn.Module):
             nn.ReLU(),                          # Try out ReLU
             nn.Linear(32, 32),  # try this out, can also make the first to higher dim and this from higher dim
             nn.ReLU(), 
-            nn.Linear(32, 1)
+            nn.Linear(32, 3)
         )
-
-    # def forward(self, t, z):
-    #     # t_vec = torch.ones(z.shape[0], 1, device=z.device) * t
-    #     # z_aug = torch.cat([z, t_vec], dim=1)
-    #     return self.net(z)
 
     def forward(self, t, z):
         t_vec = torch.ones(z.shape[0], 1, device=z.device) * t
         z_aug = torch.cat([z, t_vec], dim=1)
-        dz = self.net(z_aug)
+        return self.net(z_aug)
 
-        dx = torch.zeros_like(dz)
-        dy = torch.zeros_like(dz)
+    # def forward(self, t, z):
+    #     t_vec = torch.ones(z.shape[0], 1, device=z.device) * t
+    #     z_aug = torch.cat([z, t_vec], dim=1)
+    #     dz = self.net(z_aug)
 
-        return torch.cat([dx, dy, dz], dim=1)
+    #     dx = torch.zeros_like(dz)
+    #     dy = torch.zeros_like(dz)
+
+    #     return torch.cat([dx, dy, dz], dim=1)
     
 
 class NeuralODEClassifier(nn.Module):
     def __init__(self, input_dim, hidden_dim):
         super().__init__()
-        self.input_layer = nn.Linear(input_dim, hidden_dim)
+        # self.input_layer = nn.Linear(input_dim, hidden_dim)
         self.input_dim = input_dim
         self.augment_dim = hidden_dim - input_dim
         self.odefunc = ODEFunc(hidden_dim=hidden_dim)
@@ -136,8 +136,8 @@ class NeuralODEClassifier(nn.Module):
         return out.squeeze()
     
     def get_hidden_trajectory(self, x, t_eval):
-        z0 = torch.tanh(self.input_layer(x))
-        z0 = self.input_layer(x)
+        # z0 = torch.tanh(self.input_layer(x))
+        # z0 = self.input_layer(x)
         aug = torch.zeros(x.shape[0], self.augment_dim, device=x.device)
         z0 = torch.cat([x, aug], dim=1)
 
