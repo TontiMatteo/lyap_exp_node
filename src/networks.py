@@ -83,17 +83,17 @@ class ODEFunc(nn.Module):
     def __init__(self, hidden_dim):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(hidden_dim + 1, 32),
+            nn.Linear(hidden_dim , hidden_dim),
             nn.ReLU(),                          # Try out ReLU
-            nn.Linear(32, 32),  # try this out, can also make the first to higher dim and this from higher dim
-            nn.ReLU(), 
-            nn.Linear(32, 3)
+            # nn.Linear(32, 32),  # try this out, can also make the first to higher dim and this from higher dim
+            # nn.ReLU(), 
+            # nn.Linear(32, 3)
         )
 
     def forward(self, t, z):
         t_vec = torch.ones(z.shape[0], 1, device=z.device) * t
         z_aug = torch.cat([z, t_vec], dim=1)
-        return self.net(z_aug)
+        return self.net(z)
 
     # def forward(self, t, z):
     #     t_vec = torch.ones(z.shape[0], 1, device=z.device) * t
@@ -122,16 +122,16 @@ class NeuralODEClassifier(nn.Module):
         z0 = torch.cat([x, aug], dim=1)
 
         # tspan = torch.tensor([0, 1], dtype=torch.float32, device=x.device)     # integrate from t=0 to t=1
-        # tspan = torch.arange(
-        #     0.0, 1.0 + 1e-6, 0.1,
-        #     device=x.device
-        # )
-        tspan = torch.tensor([0., 1.])
+        tspan = torch.arange(
+            0.0, 1.0 + 1e-6, 0.1,
+            device=x.device
+        )
+        # tspan = torch.tensor([0., 1.])
 
-        zT = odeint(self.odefunc, z0, tspan, method="dopri5", atol=1e-3, rtol=1e-3, options={'max_num_steps': 1000})[-1]              # try out Euler discretization (0.1 stepsize)
+        # zT = odeint(self.odefunc, z0, tspan, method="dopri5", atol=1e-3, rtol=1e-3, options={'max_num_steps': 1000})[-1]              # try out Euler discretization (0.1 stepsize)
 
 
-        # zT = odeint(self.odefunc, z0, tspan, method="euler")[-1]              # try out Euler discretization (0.1 stepsize)
+        zT = odeint(self.odefunc, z0, tspan, method="euler")[-1]              # try out Euler discretization (0.1 stepsize)
         out = self.final_layer(zT)
         return out.squeeze()
     
@@ -141,7 +141,8 @@ class NeuralODEClassifier(nn.Module):
         aug = torch.zeros(x.shape[0], self.augment_dim, device=x.device)
         z0 = torch.cat([x, aug], dim=1)
 
-        z_traj = odeint(self.odefunc, z0, t_eval, method="dopri5")
+        z_traj = odeint(self.odefunc, z0, t_eval, method="euler")
+        # z_traj = odeint(self.odefunc, z0, t_eval, method="euler")[-1]   
         return z_traj
 
 class NeuralODE_Truncated(nn.Module):
@@ -157,17 +158,17 @@ class NeuralODE_Truncated(nn.Module):
         # x: shape [B, input_dim]
         # T: final time for integration (float)
         device = x.device
-        tspan = torch.tensor([t0, t1], dtype=torch.float32, device=device)
-        # tspan = torch.arange(
-        #     0.0, 1.0 + 1e-6, 0.1,
-        #     device=x.device
-        # )
+        # tspan = torch.tensor([t0, t1], dtype=torch.float32, device=device)
+        tspan = torch.arange(
+            0.0, 1.0 + 1e-6, 0.1,
+            device=x.device
+        )
 
         # z0 = self.model.input_layer(x)           # initial hidden state
         aug = torch.zeros(x.shape[0], self.model.augment_dim, device=x.device)
         z0 = torch.cat([x, aug], dim=1)
-        zT = odeint(self.model.odefunc, z0, tspan, method="dopri5", atol=1e-3, rtol=1e-3, options={'max_num_steps': 1000})[-1]  # integrate to T
-        # zT = odeint(self.model.odefunc, z0, tspan, method="euler")[-1]
+        # zT = odeint(self.model.odefunc, z0, tspan, method="dopri5", atol=1e-3, rtol=1e-3, options={'max_num_steps': 1000})[-1]  # integrate to T
+        zT = odeint(self.model.odefunc, z0, tspan, method="euler")[-1]
         return zT                                            # do NOT apply final layer
     
 class NeuralODE_Full(nn.Module):
